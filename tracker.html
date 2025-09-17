@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bus Search & Tracker Demo</title>
+
+    <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 20px; background: #fafafa; color: #111; }
+        h1 { margin-bottom: 8px }
+        #searchForm { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+        input[type="text"] { padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd; min-width: 160px }
+        button { padding: 8px 12px; border-radius: 6px; border: none; background: #0b76ef; color: white; cursor: pointer }
+        button.secondary { background: #666 }
+        #busResults { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px }
+        .bus-card { background: white; border-radius: 8px; padding: 12px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); cursor: pointer; transition: transform 0.2s; }
+        .bus-card:hover { transform: scale(1.02); }
+        .meta { color: #666; font-size: 13px; margin-top: 6px }
+        .no-results { color: #333; text-align: center; grid-column: 1/-1; }
+        .summary { margin-bottom: 8px; color: #444 }
+    </style>
+
+    <style>
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; visibility: hidden; opacity: 0; transition: visibility 0s, opacity 0.3s; z-index: 9999; }
+        .modal.active { visibility: visible; opacity: 1; }
+        .modal-content { background: #2d2d2d; color: white; padding: 20px; border-radius: 16px; width: 320px; text-align: center; }
+        .modal-content h2 { margin-bottom: 16px; font-size: 18px; }
+        .location-options { display: flex; justify-content: space-between; margin: 16px 0; }
+        .location-options div { flex: 1; margin: 0 6px; text-align: center; font-size: 14px; }
+        .location-options img { width: 100%; border-radius: 8px; margin-bottom: 6px; }
+        .modal-buttons button { width: 100%; padding: 10px; margin: 6px 0; border: none; border-radius: 8px; background: #5af7c4; color: black; font-weight: bold; cursor: pointer; }
+    </style>
+
+    <style>
+        #routeTitle { margin-bottom: 8px; }
+        #trackingInfo { margin-top: 20px; font-size: 16px; color: green; }
+        #map-container { display: none; }
+        #map { height: 400px; width: 100%; margin-top: 20px; }
+    </style>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <div id="search-page">
+        <h1>Bus Search (Demo)</h1>
+        <form id="searchForm" autocomplete="off">
+            <input id="sourceInput" type="text" placeholder="Source (e.g. Hyderabad)" />
+            <input id="destinationInput" type="text" placeholder="Destination (e.g. Vizag)" />
+            <button type="submit">Search</button>
+            <button type="button" id="resetBtn" class="secondary">Reset</button>
+        </form>
+        <div class="summary" id="summaryText"></div>
+        <div id="busResults"></div>
+    </div>
+
+    <div id="map-container">
+        <h2 id="routeTitle"></h2>
+        <div id="trackingInfo">Initializing tracking...</div>
+        <div id="map"></div>
+        <button onclick="stopTracking()">Stop Tracking</button>
+    </div>
+
+    <div class="modal" id="locationModal">
+        <div class="modal-content">
+            <h2>Allow this app to access your location?</h2>
+            <div class="location-options">
+                <div><img src="https://via.placeholder.com/120x80?text=Precise" alt="Precise">Precise</div>
+                <div><img src="https://via.placeholder.com/120x80?text=Approx" alt="Approximate">Approximate</div>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="handlePermission('while')">WHILE USING THE APP</button>
+                <button onclick="handlePermission('once')">ONLY THIS TIME</button>
+                <button onclick="handlePermission('deny')">DON’T ALLOW</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Shared Data and Functions ---
+        const cities = ["Hyderabad", "Secunderabad", "Vijayawada", "Guntur", "Warangal", "Nizamabad", "Karimnagar", "Nellore", "Rajahmundry", "Tirupati", "Tanuku", "Bhimavaram", "Tuni", "Vizag", "Anantapur", "Kurnool", "Khammam", "Adilabad"];
+        const busTypes = ["CNG, Non-AC", "Diesel, AC", "Electric, AC", "Petrol, Non-AC"];
+        const pad = (n) => String(n).padStart(2, '0');
+        function formatTime(date) { return pad(date.getHours()) + ':' + pad(date.getMinutes()); }
+        
+        function generateBuses() {
+            const out = [];
+            let idCounter = 1000;
+            for (let i = 0; i < cities.length; i++) {
+                for (let j = 0; j < cities.length; j++) {
+                    if (i !== j) {
+                        const from = cities[i];
+                        const to = cities[j];
+                        const distance = `${Math.floor(Math.random() * 200 + 50)} KM`;
+                        const type = busTypes[Math.floor(Math.random() * busTypes.length)];
+                        const now = new Date();
+                        const departure = new Date(now.getTime() + Math.floor(Math.random() * 12) * 60 * 60 * 1000);
+                        const arrival = new Date(departure.getTime() + Math.floor(Math.random() * 4 + 1) * 60 * 60 * 1000);
+                        const time = `${formatTime(departure)} → ${formatTime(arrival)}`;
+                        out.push({ id: 'BUS' + (idCounter++), from, to, distance, type, time, });
+                    }
+                }
+            }
+            return out;
+        }
+        const buses = generateBuses();
+
+        // --- Search Page Logic ---
+        function getURLParam(key) {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                return (params.get(key) || '').trim();
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function filterBuses(list, source, destination) {
+            const s = (source || '').trim().toLowerCase();
+            const d = (destination || '').trim().toLowerCase();
+            return list.filter(bus => {
+                const matchS = !s || bus.from.toLowerCase().includes(s);
+                const matchD = !d || bus.to.toLowerCase().includes(d);
+                return matchS && matchD;
+            });
+        }
+
+        function renderResults(list, source, destination) {
+            const container = document.getElementById('busResults');
+            const summary = document.getElementById('summaryText');
+            container.innerHTML = '';
+            summary.textContent = `Showing ${list.length} / ${buses.length} buses` +
+                (source || destination ? ` — filter: ${source || '-'} → ${destination || '-'}` : '');
+
+            if (list.length === 0) {
+                container.innerHTML = `<p class="no-results">No buses found for this route.</p>`;
+                return;
+            }
+            for (const bus of list) {
+                const card = document.createElement('div');
+                card.className = 'bus-card';
+                card.innerHTML = `
+                    <strong>${bus.from} → ${bus.to}</strong>
+                    <div class="meta">Bus ID: ${bus.id} • ${bus.type}</div>
+                    <div style="margin-top:8px">
+                        <div><strong>Distance:</strong> ${bus.distance}</div>
+                        <div><strong>Timing:</strong> ${bus.time}</div>
+                    </div>
+                `;
+                card.onclick = () => showPermissionModal(bus);
+                container.appendChild(card);
+            }
+        }
+
+        // --- Permission Modal Logic ---
+        const modal = document.getElementById("locationModal");
+        let selectedBus = null;
+
+        function showPermissionModal(bus) {
+            selectedBus = bus;
+            modal.classList.add("active");
+        }
+
+        function handlePermission(choice) {
+            modal.classList.remove("active");
+            if (choice === "deny") {
+                alert("Location access denied.");
+                return;
+            }
+            // Navigate to the tracker page with route details
+            window.location.href = `index.html?from=${encodeURIComponent(selectedBus.from)}&to=${encodeURIComponent(selectedBus.to)}`;
+        }
+
+        // --- Tracker Page Logic ---
+        let watchId = null;
+        let busMap, busMarker;
+
+        function startTracking(from, to) {
+            document.getElementById("routeTitle").innerText = `Tracking route: ${from} → ${to}`;
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        document.getElementById("trackingInfo").innerText = `Live Location:\nLat: ${lat}, Lon: ${lon}`;
+                        if (!busMap) {
+                            busMap = L.map('map').setView([lat, lon], 13);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(busMap);
+                            busMarker = L.marker([lat, lon]).addTo(busMap).bindPopup("Bus Location").openPopup();
+                        } else {
+                            busMarker.setLatLng([lat, lon]);
+                            busMap.setView([lat, lon], 13);
+                        }
+                    },
+                    (error) => {
+                        alert("Error: " + error.message);
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0 }
+                );
+            } else {
+                alert("Geolocation not supported in this browser.");
+            }
+        }
+
+        function stopTracking() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+                document.getElementById("trackingInfo").innerText = "Tracking stopped.";
+            }
+        }
+
+        // --- Main App Logic on Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const srcParam = getURLParam('from');
+            const dstParam = getURLParam('to');
+
+            if (srcParam && dstParam) {
+                // We are on the tracker page
+                document.getElementById('search-page').style.display = 'none';
+                document.getElementById('map-container').style.display = 'block';
+                startTracking(srcParam, dstParam);
+            } else {
+                // We are on the search page
+                const srcInput = document.getElementById('sourceInput');
+                const dstInput = document.getElementById('destinationInput');
+                const form = document.getElementById('searchForm');
+                const resetBtn = document.getElementById('resetBtn');
+
+                if (getURLParam('source')) srcInput.value = getURLParam('source');
+                if (getURLParam('destination')) dstInput.value = getURLParam('destination');
+
+                const initialFiltered = filterBuses(buses, srcInput.value, dstInput.value);
+                renderResults(initialFiltered, srcInput.value, dstInput.value);
+
+                form.addEventListener('submit', (ev) => {
+                    ev.preventDefault();
+                    const s = srcInput.value;
+                    const d = dstInput.value;
+                    const filtered = filterBuses(buses, s, d);
+                    renderResults(filtered, s, d);
+                    const p = new URL(window.location.href);
+                    if (s) p.searchParams.set('source', s); else p.searchParams.delete('source');
+                    if (d) p.searchParams.set('destination', d); else p.searchParams.delete('destination');
+                    history.replaceState({}, '', p.toString());
+                });
+
+                resetBtn.addEventListener('click', () => {
+                    srcInput.value = '';
+                    dstInput.value = '';
+                    renderResults(buses, '', '');
+                    const p = new URL(window.location.href);
+                    p.search = '';
+                    history.replaceState({}, '', p.toString());
+                });
+            }
+        });
+    </script>
+</body>
+</html>

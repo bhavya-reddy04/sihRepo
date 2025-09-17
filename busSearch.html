@@ -1,0 +1,104 @@
+<style>
+  /* Modal styling */
+  .modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0s, opacity 0.3s;
+    z-index: 9999;
+  }
+  .modal.active {
+    visibility: visible;
+    opacity: 1;
+  }
+  .modal-content {
+    background: #2d2d2d;
+    color: white;
+    padding: 20px;
+    border-radius: 16px;
+    width: 320px;
+    text-align: center;
+  }
+  .modal-content h2 {
+    margin-bottom: 16px;
+    font-size: 18px;
+  }
+  .location-options {
+    display: flex;
+    justify-content: space-between;
+    margin: 16px 0;
+  }
+  .location-options div {
+    flex: 1;
+    margin: 0 6px;
+    text-align: center;
+    font-size: 14px;
+  }
+  .location-options img {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+  .modal-buttons button {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border: none;
+    border-radius: 8px;
+    background: #5af7c4;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+  }
+</style>
+
+<!-- Modal -->
+<div class="modal" id="locationModal">
+  <div class="modal-content">
+    <h2>Allow roommates to access this device’s location?</h2>
+
+    <div class="location-options">
+      <div>
+        <img src="https://via.placeholder.com/120x80?text=Precise" alt="Precise">
+        Precise
+      </div>
+      <div>
+        <img src="https://via.placeholder.com/120x80?text=Approx" alt="Approximate">
+        Approximate
+      </div>
+    </div>
+
+    <div class="modal-buttons">
+      <button onclick="closeModal('while')">WHILE USING THE APP</button>
+      <button onclick="closeModal('once')">ONLY THIS TIME</button>
+      <button onclick="closeModal('deny')">DON’T ALLOW</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.getElementById("locationModal");
+
+  // show modal when bus card clicked
+  function showModal() {
+    modal.classList.add("active");
+  }
+
+  function closeModal(choice) {
+    modal.classList.remove("active");
+    alert("You selected: " + choice);
+  }
+
+  // Example: attach modal trigger to bus cards
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".bus-card")) {
+      showModal();
+    }
+  });
+</script>

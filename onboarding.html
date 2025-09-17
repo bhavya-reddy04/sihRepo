@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HRTC Onboarding</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #f2f2f2;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .phone-frame {
+      width: 320px;
+      height: 640px;
+      border: 2px solid #333;
+      border-radius: 30px;
+      background-color: #fff;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .image {
+      width: 100%;
+      max-height: 250px;
+      object-fit: contain;
+    }
+
+    .content {
+      text-align: center;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    .description {
+      font-size: 13px;
+      color: #666;
+      margin-top: 10px;
+      padding: 0 10px;
+    }
+
+    .navigation {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+      margin-bottom: 10px;
+    }
+
+    .skip {
+      font-size: 14px;
+      color: #0077cc;
+      text-decoration: none;
+    }
+
+    .dots {
+      display: flex;
+      gap: 5px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background-color: #ccc;
+      border-radius: 50%;
+    }
+
+    .dot.active {
+      background-color: #0077cc;
+    }
+
+    .next {
+      font-size: 20px;
+      text-decoration: none;
+      color: #0077cc;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone-frame">
+    <img
+      class="image"
+      src="https://cdn.dribbble.com/users/333991/screenshots/16787058/media/b2276dc7e62a49a56940865da3c8a97e.png"
+      alt="App Illustration"
+    />
+
+    <div class="content">
+      <div class="title">Discover HRTC's Smart Transportation</div>
+      <div class="description">
+        Explore the future of public transportation in Himachal Pradesh with our smart transportation system.
+        Get real-time information about bus availability and arrival times. Travel with ease and efficiency.
+      </div>
+    </div>
+
+    <div class="navigation">
+      <a href="index.html" class="skip">Skip</a>
+      <div class="dots">
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <a href="index.html" class="next">→</a>
+    </div>
+  </div>
+</body>
+</html>
