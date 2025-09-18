@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Transport Tracker</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- LeafletJS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling of the whole page */
+        }
+        #map {
+            height: 100vh;
+        }
+        /* Custom Leaflet icon styles */
+        .bus-icon {
+            background-color: #3B82F6; /* blue-500 */
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 20px !important;
+            height: 20px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .stop-icon {
+            background-color: #fff;
+            border: 2px solid #6B7280; /* gray-500 */
+            border-radius: 50%;
+            width: 10px !important;
+            height: 10px !important;
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+        /* Custom scrollbar for info panel */
+        #info-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        #info-panel::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+        }
+        #info-panel::-webkit-scrollbar-thumb {
+            background: #94a3b8; /* slate-400 */
+            border-radius: 3px;
+        }
+        #info-panel::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* slate-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app-container" class="relative md:flex">
+
+        <!-- Sidebar -->
+        <aside class="absolute md:relative top-0 left-0 z-[1000] w-full md:w-96 h-screen bg-white shadow-lg flex flex-col transition-transform duration-300 ease-in-out" id="sidebar">
+            <!-- Header -->
+            <div class="p-4 border-b bg-slate-50">
+                <div class="flex items-center space-x-3">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <h1 class="text-xl font-bold text-gray-800">City Transit Tracker</h1>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="p-4 space-y-4">
+                <div>
+                    <label for="route-select" class="block text-sm font-medium text-gray-700 mb-1">Select Bus Route</label>
+                    <select id="route-select" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- Choose a route --</option>
+                    </select>
+                </div>
+                
+                <!-- Routing Feature -->
+                <div class="p-3 bg-slate-50 rounded-lg border">
+                    <h3 class="text-md font-semibold text-gray-800 mb-2">Find Your Bus</h3>
+                     <div class="space-y-2">
+                        <input type="text" id="start-location" placeholder="Enter start location" class="w-full p-2 text-sm border border-gray-300 rounded-md">
+                        <input type="text" id="end-location" placeholder="Enter destination" class="w-full p-2 text-sm border border-gray-300 rounded-md">
+                        <button id="find-bus-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300">Find Route</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Information Panel -->
+            <div id="info-panel" class="flex-grow p-4 border-t overflow-y-auto">
+                <div class="text-center text-gray-500">
+                    <p>Select a route to see live bus locations and schedule information.</p>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Toggle button for mobile -->
+        <button id="sidebar-toggle" class="md:hidden absolute top-4 left-4 z-[1001] bg-white p-2 rounded-full shadow-lg">
+            <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+        </button>
+
+
+        <!-- Map -->
+        <main class="flex-grow">
+            <div id="map"></div>
+        </main>
+    </div>
+
+    <!-- Toast Notification for SMS -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-500 ease-in-out">
+        <p id="toast-message">SMS notification set!</p>
+    </div>
+
+
+    <script>
+        // --- MOCK DATA (Simulating Backend Database & API) ---
+        // This data would normally come from a server via API calls.
+        const mockData = {
+            routes: [
+                {
+                    id: '47Y',
+                    name: 'Secunderabad Jn to Medchal',
+                    color: '#3b82f6', // blue-500
+                    path: [ // A simplified path of lat/lng coordinates
+                        [17.4399, 78.4983], [17.4450, 78.4990], [17.4500, 78.4995], [17.4580, 78.4980], [17.4650, 78.4960], [17.4720, 78.4930], [17.4800, 78.4900], [17.4900, 78.4850], [17.5000, 78.4800], [17.5150, 78.4750], [17.5300, 78.4700], [17.5500, 78.4650], [17.5700, 78.4600], [17.5900, 78.4550], [17.6100, 78.4500], [17.6194, 78.4485]
+                    ],
+                    stops: [
+                        { name: 'Secunderabad Jn', lat: 17.4399, lng: 78.4983 },
+                        { name: 'Patny Centre', lat: 17.4500, lng: 78.4995 },
+                        { name: 'Tirumalgherry X Road', lat: 17.4720, lng: 78.4930 },
+                        { name: 'Alwal', lat: 17.5150, lng: 78.4750 },
+                        { name: 'Kompally', lat: 17.5500, lng: 78.4650 },
+                        { name: 'Medchal', lat: 17.6194, lng: 78.4485 }
+                    ],
+                    schedule: [
+                        { stop: 'Secunderabad Jn', time: '08:00 AM' },
+                        { stop: 'Patny Centre', time: '08:10 AM' },
+                        { stop: 'Tirumalgherry X Road', time: '08:25 AM' },
+                        { stop: 'Alwal', time: '08:40 AM' },
+                        { stop: 'Kompally', time: '08:55 AM' },
+                        { stop: 'Medchal', time: '09:15 AM' }
+                    ],
+                    buses: [
+                        { id: 'BUS-101', pathIndex: 5 },
+                        { id: 'BUS-102', pathIndex: 12 },
+                    ]
+                },
+                {
+                    id: '10H',
+                    name: 'Koti to Hi-Tech City',
+                    color: '#10b981', // emerald-500
+                    path: [
+                        [17.3879, 78.4837], [17.3950, 78.4800], [17.4050, 78.4750], [17.4150, 78.4700], [17.4250, 78.4650], [17.4350, 78.4600], [17.4400, 78.4500], [17.4450, 78.4400], [17.4480, 78.4300], [17.4500, 78.4200], [17.4520, 78.4100], [17.4530, 78.4000], [17.4520, 78.3900], [17.4498, 78.3815]
+                    ],
+                    stops: [
+                        { name: 'Koti', lat: 17.3879, lng: 78.4837 },
+                        { name: 'Lakdikapul', lat: 17.4050, lng: 78.4750 },
+                        { name: 'Panjagutta', lat: 17.4350, lng: 78.4600 },
+                        { name: 'Jubilee Hills Check Post', lat: 17.4450, lng: 78.4400 },
+                        { name: 'Madhapur', lat: 17.4520, lng: 78.4100 },
+                        { name: 'Hi-Tech City', lat: 17.4498, lng: 78.3815 }
+                    ],
+                    schedule: [
+                        { stop: 'Koti', time: '09:00 AM' },
+                        { stop: 'Lakdikapul', time: '09:12 AM' },
+                        { stop: 'Panjagutta', time: '09:25 AM' },
+                        { stop: 'Jubilee Hills Check Post', time: '09:40 AM' },
+                        { stop: 'Madhapur', time: '09:55 AM' },
+                        { stop: 'Hi-Tech City', time: '10:05 AM' }
+                    ],
+                    buses: [
+                        { id: 'BUS-201', pathIndex: 2 },
+                        { id: 'BUS-202', pathIndex: 8 },
+                        { id: 'BUS-203', pathIndex: 11 },
+                    ]
+                },
+                {
+                    id: '222A',
+                    name: 'Koti to Lingampally',
+                    color: '#f97316', // orange-500
+                    path: [
+                        [17.3879, 78.4837], [17.3900, 78.4750], [17.3915, 78.4684], [17.3910, 78.4550], [17.3892, 78.4429], [17.3950, 78.4300], [17.4050, 78.4150], [17.4200, 78.3900], [17.4350, 78.3650], [17.4423, 78.3472], [17.4600, 78.3300], [17.4750, 78.3150], [17.4880, 78.3070]
+                    ],
+                    stops: [
+                        { name: 'Koti', lat: 17.3879, lng: 78.4837 },
+                        { name: 'Nampally', lat: 17.3915, lng: 78.4684 },
+                        { name: 'Mehdipatnam', lat: 17.3892, lng: 78.4429 },
+                        { name: 'Gachibowli', lat: 17.4423, lng: 78.3472 },
+                        { name: 'Lingampally', lat: 17.4880, lng: 78.3070 }
+                    ],
+                    schedule: [
+                        { stop: 'Koti', time: '07:30 AM' },
+                        { stop: 'Nampally', time: '07:45 AM' },
+                        { stop: 'Mehdipatnam', time: '08:00 AM' },
+                        { stop: 'Gachibowli', time: '08:30 AM' },
+                        { stop: 'Lingampally', time: '08:50 AM' }
+                    ],
+                    buses: [
+                        { id: 'BUS-301', pathIndex: 3 },
+                        { id: 'BUS-302', pathIndex: 9 },
+                    ]
+                },
+                {
+                    id: '9X',
+                    name: 'Jeedimetla to CBS',
+                    color: '#8b5cf6', // violet-500
+                    path: [
+                        [17.5255, 78.4746], [17.5100, 78.4650], [17.4950, 78.4580], [17.4851, 78.4533], [17.4700, 78.4500], [17.4550, 78.4490], [17.4375, 78.4483], [17.4400, 78.4550], [17.4430, 78.4646], [17.4450, 78.4750], [17.4475, 78.4947], [17.4300, 78.4900], [17.4000, 78.4870], [17.3789, 78.4858]
+                    ],
+                    stops: [
+                        { name: 'Jeedimetla', lat: 17.5255, lng: 78.4746 },
+                        { name: 'Balanagar', lat: 17.4851, lng: 78.4533 },
+                        { name: 'Ameerpet', lat: 17.4375, lng: 78.4483 },
+                        { name: 'Begumpet', lat: 17.4430, lng: 78.4646 },
+                        { name: 'Paradise', lat: 17.4475, lng: 78.4947 },
+                        { name: 'CBS', lat: 17.3789, lng: 78.4858 }
+                    ],
+                    schedule: [
+                        { stop: 'Jeedimetla', time: '10:00 AM' },
+                        { stop: 'Balanagar', time: '10:15 AM' },
+                        { stop: 'Ameerpet', time: '10:30 AM' },
+                        { stop: 'Begumpet', time: '10:40 AM' },
+                        { stop: 'Paradise', time: '10:55 AM' },
+                        { stop: 'CBS', time: '11:15 AM' }
+                    ],
+                    buses: [
+                        { id: 'BUS-401', pathIndex: 1 },
+                        { id: 'BUS-402', pathIndex: 7 },
+                    ]
+                }
+            ]
+        };
+
+        // --- GLOBAL VARIABLES ---
+        let map;
+        let activeRouteLayers = [];
+        let busMarkers = {};
+        let simulationInterval = null;
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeMap();
+            populateRouteSelector();
+            setupEventListeners();
+        });
+
+        function initializeMap() {
+            // Initialize map centered on Secunderabad, India
+            map = L.map('map').setView([17.4399, 78.4983], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+        }
+
+        function populateRouteSelector() {
+            const routeSelect = document.getElementById('route-select');
+            mockData.routes.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.id;
+                option.textContent = `${route.id} - ${route.name}`;
+                routeSelect.appendChild(option);
+            });
+        }
+        
+        function setupEventListeners() {
+            document.getElementById('route-select').addEventListener('change', (e) => {
+                const routeId = e.target.value;
+                if (routeId) {
+                    displayRoute(routeId);
+                } else {
+                    clearMap();
+                    resetInfoPanel();
+                }
+            });
+
+            document.getElementById('find-bus-btn').addEventListener('click', findBusRoute);
+            
+            // Sidebar toggle for mobile
+            const sidebar = document.getElementById('sidebar');
+            const toggleButton = document.getElementById('sidebar-toggle');
+            toggleButton.addEventListener('click', () => {
+                sidebar.classList.toggle('-translate-x-full');
+            });
+            
+            // Close sidebar if map is clicked on mobile
+            map.on('click', () => {
+                 if (window.innerWidth < 768) { // md breakpoint
+                    sidebar.classList.add('-translate-x-full');
+                 }
+            });
+        }
+
+
+        // --- MAP & DISPLAY LOGIC ---
+        
+        function clearMap() {
+            // Clear previous route layers
+            activeRouteLayers.forEach(layer => map.removeLayer(layer));
+            activeRouteLayers = [];
+
+            // Clear previous bus markers
+            Object.values(busMarkers).forEach(marker => map.removeLayer(marker));
+            busMarkers = {};
+
+            // Stop any ongoing simulation
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+            }
+        }
+
+        function displayRoute(routeId) {
+            clearMap();
+
+            const routeData = mockData.routes.find(r => r.id === routeId);
+            if (!routeData) return;
+
+            // 1. Draw the route path
+            const routeLine = L.polyline(routeData.path, { color: routeData.color, weight: 5 }).addTo(map);
+            activeRouteLayers.push(routeLine);
+            
+            // 2. Add markers for each stop
+            routeData.stops.forEach(stop => {
+                const stopMarker = L.marker([stop.lat, stop.lng], { 
+                    icon: L.divIcon({ className: 'stop-icon', iconSize: [12, 12] }) 
+                }).addTo(map);
+                stopMarker.bindPopup(`<b>${stop.name}</b>`);
+                activeRouteLayers.push(stopMarker);
+            });
+
+            // 3. Fit map to the route bounds
+            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+
+            // 4. Update the info panel
+            updateInfoPanel(routeData);
+
+            // 5. Start the live bus simulation
+            startBusSimulation(routeData);
+        }
+
+        function updateInfoPanel(routeData) {
+            const infoPanel = document.getElementById('info-panel');
+            let scheduleHtml = routeData.schedule.map(item => `
+                <div class="flex justify-between items-center py-2 text-sm">
+                    <span class="text-gray-600">${item.stop}</span>
+                    <span class="font-semibold text-gray-800">${item.time}</span>
+                </div>
+            `).join('<hr class="my-1 border-gray-200">');
+
+            infoPanel.innerHTML = `
+                <h2 class="text-lg font-bold text-gray-900">${routeData.id} - ${routeData.name}</h2>
+                <h3 class="text-md font-semibold text-gray-700 mt-4 mb-2">Bus Schedule</h3>
+                <div class="space-y-1">${scheduleHtml}</div>
+            `;
+        }
+        
+        function resetInfoPanel() {
+            document.getElementById('info-panel').innerHTML = `
+                <div class="text-center text-gray-500">
+                    <p>Select a route to see live bus locations and schedule information.</p>
+                </div>
+            `;
+        }
+        
+
+        // --- LIVE TRACKING SIMULATION ---
+        
+        function startBusSimulation(routeData) {
+             // Create initial bus markers
+            routeData.buses.forEach(bus => {
+                const position = routeData.path[bus.pathIndex];
+                const marker = L.marker(position, {
+                    icon: L.divIcon({ 
+                        className: 'bus-icon',
+                        html: `<b>${routeData.id.charAt(0)}</b>`
+                    })
+                }).addTo(map);
+                
+                // Add to our global tracker
+                busMarkers[bus.id] = marker;
+            });
+
+            // Start the update loop (simulates WebSocket push)
+            simulationInterval = setInterval(() => {
+                updateBusPositions(routeData);
+            }, 4000); // Update every 4 seconds
+        }
+
+        function updateBusPositions(routeData) {
+            routeData.buses.forEach(bus => {
+                // Move bus along the path
+                bus.pathIndex = (bus.pathIndex + 1) % routeData.path.length;
+                const newPosition = routeData.path[bus.pathIndex];
+                
+                const marker = busMarkers[bus.id];
+                if (marker) {
+                    marker.setLatLng(newPosition);
+                    // Update popup information
+                    const nextStop = findNextStop(newPosition, routeData.stops);
+                    const popupContent = `
+                        <div class="text-center">
+                            <h4 class="font-bold">Bus ID: ${bus.id}</h4>
+                            <p class="text-sm">Route: ${routeData.id}</p>
+                            <p class="text-sm">Next Stop: ${nextStop.name}</p>
+                            <button class="mt-2 bg-green-500 text-white text-xs py-1 px-3 rounded-md hover:bg-green-600" onclick="mockSendSMS('${bus.id}', '${nextStop.name}')">
+                                Get ETA via SMS
+                            </button>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent).openPopup();
+                }
+            });
+        }
+        
+        // Helper to find the closest upcoming stop
+        function findNextStop(busPosition, stops) {
+            let closestStop = stops[stops.length - 1]; // Default to last stop
+            let minDistance = Infinity;
+
+            // This is a simple distance check. A real system would use the route path.
+            for (const stop of stops) {
+                const distance = map.distance(busPosition, [stop.lat, stop.lng]);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestStop = stop;
+                }
+            }
+            // In this simulation, we'll find the first stop *after* the current closest one.
+            const currentIndex = stops.findIndex(s => s.name === closestStop.name);
+            const nextIndex = (currentIndex + 1) % stops.length;
+            return stops[nextIndex];
+        }
+
+        // --- FEATURE SIMULATIONS ---
+
+        function findBusRoute() {
+            const start = document.getElementById('start-location').value.toLowerCase();
+            const end = document.getElementById('end-location').value.toLowerCase();
+            const routeSelect = document.getElementById('route-select');
+
+            // Simple mock logic for routing
+            if (start.includes('secunderabad') && end.includes('medchal')) {
+                routeSelect.value = '47Y';
+            } else if (start.includes('koti') && end.includes('tech')) {
+                routeSelect.value = '10H';
+            } else {
+                alert("Sorry, no direct route found for the entered locations in this demo. Please try 'Koti' to 'Hi-Tech City' or 'Secunderabad' to 'Medchal'.");
+                return;
+            }
+            // Trigger the change event to display the route
+            routeSelect.dispatchEvent(new Event('change'));
+        }
+        
+        // Mock SMS Feature
+        function mockSendSMS(busId, stopName) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            toastMessage.textContent = `SMS alert for Bus ${busId} at ${stopName} is set!`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 4000); // Hide after 4 seconds
+        }
+
+    </script>
+</body>
+</html>
+
+
